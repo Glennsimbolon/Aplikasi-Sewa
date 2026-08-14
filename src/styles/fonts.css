@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+.f-display {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.01em;
+}
+.f-body {
+  font-family: 'Inter', sans-serif;
+}
+.f-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stripe-bg {
+  background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,0.035) 0 6px, transparent 6px 16px);
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1 }
+  50% { opacity: .35 }
+}
+.pulse-dot {
+  animation: pulseDot 1.6s ease-in-out infinite;
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: 0; }
+}
+.track-line {
+  stroke-dasharray: 6 7;
+  stroke-dashoffset: 400;
+  animation: dash 2.4s linear forwards;
+}
+
+.card-hover {
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  border-color: #FF6A13;
+  box-shadow: 0 12px 30px -12px rgba(255,106,19,.35);
+}
+
+.tab-underline {
+  position: relative;
+}
+.tab-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -9px;
+  height: 2px;
+  background: #FF6A13;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .25s ease;
+}
+.tab-underline.active::after {
+  transform: scaleX(1);
+}

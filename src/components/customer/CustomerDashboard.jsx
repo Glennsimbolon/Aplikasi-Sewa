@@ -62,7 +62,35 @@ const CustomerDashboard = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
-        // 3. Format Bookings
+        // 3. Ambil kompetisi participants
+        const { data: kompetisiData, error: kompetisiError } = await supabase
+          .from('kompetisi_participants')
+          .select(`
+            *,
+            kompetisi:kompetisi_id (
+              name,
+              date,
+              fee
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('registered_at', { ascending: false });
+
+        // 4. Ambil workshop registrations (jika ada tabel workshop_registrations)
+        // Atau dari tabel workshop yang sudah di-update registered-nya
+        const { data: workshopData, error: workshopError } = await supabase
+          .from('workshop_registrations')
+          .select(`
+            *,
+            workshop:workshop_id (
+              name,
+              price
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('registered_at', { ascending: false });
+
+        // 5. Format Bookings
         if (bookingsData && !bookingsError) {
           const formattedBookings = bookingsData.map(item => ({
             id: `booking-${item.id}`,
@@ -78,17 +106,15 @@ const CustomerDashboard = () => {
           }));
           allTrans = [...allTrans, ...formattedBookings];
           
-          // Hitung total spent dari booking (active, confirmed, completed)
           const validBookings = bookingsData.filter(b => 
             ['active', 'confirmed', 'completed'].includes(b.status)
           );
           totalSpent += validBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
         }
 
-        // 4. Format Food Orders
+        // 6. Format Food Orders
         if (foodOrdersData && !foodError) {
           const formattedFood = foodOrdersData.map(item => {
-            // Tentukan status untuk display
             let displayStatus = item.status;
             if (item.status === 'pending') displayStatus = 'pending';
             else if (item.status === 'preparing') displayStatus = 'active';
@@ -110,18 +136,55 @@ const CustomerDashboard = () => {
           });
           allTrans = [...allTrans, ...formattedFood];
           
-          // Hitung total spent dari food (completed atau paid)
           const validFood = foodOrdersData.filter(f => 
             f.status === 'completed' || f.payment_status === 'paid'
           );
           totalSpent += validFood.reduce((sum, f) => sum + (f.total_price || 0), 0);
         }
 
-        // 5. Sort by date (terbaru di atas)
+        // 7. Format Kompetisi
+        if (kompetisiData && !kompetisiError) {
+          const formattedKompetisi = kompetisiData.map(item => ({
+            id: `kompetisi-${item.id}`,
+            name: '🏆 ' + (item.kompetisi?.name || 'Kompetisi'),
+            date: item.kompetisi?.date || item.registered_at,
+            price: item.kompetisi?.fee || 0,
+            status: item.status === 'registered' ? 'active' : 
+                    item.status === 'confirmed' ? 'confirmed' : 'completed',
+            type: 'Kompetisi',
+            created_at: item.registered_at,
+            original: item
+          }));
+          allTrans = [...allTrans, ...formattedKompetisi];
+          
+          const validKompetisi = kompetisiData.filter(k => 
+            k.status === 'registered' || k.status === 'confirmed'
+          );
+          totalSpent += validKompetisi.reduce((sum, k) => sum + (k.kompetisi?.fee || 0), 0);
+        }
+
+        // 8. Format Workshop
+        if (workshopData && !workshopError) {
+          const formattedWorkshop = workshopData.map(item => ({
+            id: `workshop-${item.id}`,
+            name: '📚 ' + (item.workshop?.name || 'Workshop'),
+            date: item.registered_at,
+            price: item.workshop?.price || 0,
+            status: 'completed',
+            type: 'Workshop',
+            created_at: item.registered_at,
+            original: item
+          }));
+          allTrans = [...allTrans, ...formattedWorkshop];
+          
+          totalSpent += workshopData.reduce((sum, w) => sum + (w.workshop?.price || 0), 0);
+        }
+
+        // 9. Sort by date (terbaru di atas)
         allTrans.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setAllTransactions(allTrans);
 
-        // 6. Set bookings (untuk display di Booking Aktif)
+        // 10. Set bookings (untuk display di Booking Aktif)
         const activeBookings = allTrans.filter(t => 
           t.type === 'Sewa RC' && ['active', 'confirmed'].includes(t.status)
         );
@@ -135,7 +198,7 @@ const CustomerDashboard = () => {
           category: t.category
         })));
 
-        // 7. Set stats
+        // 11. Set stats
         const totalBookings = allTrans.filter(t => t.type === 'Sewa RC').length;
         const activeCount = allTrans.filter(t => 
           t.type === 'Sewa RC' && ['active', 'confirmed'].includes(t.status)
@@ -279,7 +342,7 @@ const CustomerDashboard = () => {
           <div className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.panel }}>
             <div className="text-sm" style={{ color: C.steel }}>Total Transaksi</div>
             <div className="f-display font-bold text-2xl mt-1" style={{ color: C.paper }}>
-              {stats.totalBookings + allTransactions.filter(t => t.type === 'Food Court').length}
+              {allTransactions.length}
             </div>
           </div>
           <div className="rounded-lg border p-4" style={{ borderColor: C.line, background: C.panel }}>
@@ -391,6 +454,16 @@ const CustomerDashboard = () => {
           ) : (
             allTransactions.map((tx) => {
               const badge = getStatusBadge(tx.status);
+              const iconMap = {
+                'Sewa RC': '🚗',
+                'Food Court': '🍔',
+                'Kompetisi': '🏆',
+                'Workshop': '📚',
+                'Reparasi': '🔧',
+                'Toko RC': '🛒'
+              };
+              const icon = iconMap[tx.type] || '📦';
+              
               return (
                 <div
                   key={tx.id}
@@ -399,7 +472,7 @@ const CustomerDashboard = () => {
                 >
                   <div>
                     <div className="font-semibold text-sm" style={{ color: C.paper }}>
-                      {tx.type === 'Food Court' ? '🍔 ' : '🚗 '}{tx.name}
+                      {icon} {tx.name}
                     </div>
                     <div className="text-xs" style={{ color: C.steel }}>
                       {formatDate(tx.date)} · {tx.type}

@@ -121,67 +121,60 @@ function AppContent() {
     setDuration(1);
   };
 
-  // ==========================================
-  // HANDLE CHECKOUT - SIMPAN KE DATABASE!
-  // ==========================================
-  const handleCheckout = async () => {
-    if (cart.length === 0) return;
-    
-    if (!user) {
-      toast.error('Silakan login terlebih dahulu!');
-      return;
-    }
-    
-    try {
-      for (const item of cart) {
-        if (item.meta === 'Sewa RC') {
-          const parts = item.key.split('-');
-          const fleetId = parseInt(parts[1]);
-          const duration = parseInt(parts[2]);
-          
-          const startDate = new Date();
-          const endDate = new Date();
-          endDate.setDate(endDate.getDate() + duration);
-          
-          const { data, error } = await supabase
-            .from('bookings')
-            .insert([{
-              user_id: user.id,
-              fleet_id: fleetId,
-              start_date: startDate.toISOString().split('T')[0],
-              end_date: endDate.toISOString().split('T')[0],
-              total_price: item.price,
-              status: 'active',
-              payment_status: 'paid'
-            }]);
-          
-          if (error) {
-            console.error('Booking error:', error);
-            toast.error('Gagal menyimpan booking: ' + error.message);
-            return;
-          }
-          
-          console.log('✅ Booking saved:', data);
-        }
-      }
-      
-      setCheckoutDone(true);
-      clearCart();
-      setCartOpen(false);
-      toast.success('Booking berhasil! Cek dashboard kamu.');
-      
-    } catch (error) {
-      console.error('Checkout error:', error);
-      toast.error('Terjadi kesalahan saat checkout');
-    }
-  };
-
-  // ==========================================
-// HANDLE FOOD COURT CHECKOUT
 // ==========================================
-const handleFoodCheckout = async () => {
-  if (foodOrder.length === 0) {
-    toast.error('Belum ada pesanan makanan!');
+// HANDLE KOMPETISI CHECKOUT
+// ==========================================
+const handleKompetisiCheckout = async () => {
+  if (cart.length === 0) return;
+  
+  if (!user) {
+    toast.error('Silakan login terlebih dahulu!');
+    return;
+  }
+  
+  try {
+    for (const item of cart) {
+      if (item.meta === 'Kompetisi') {
+        // Parse data dari key: kompetisi-{kompetisiId}
+        const parts = item.key.split('-');
+        const kompetisiId = parseInt(parts[1]);
+        
+        // Simpan ke tabel kompetisi_participants
+        const { data, error } = await supabase
+          .from('kompetisi_participants')
+          .insert([{
+            kompetisi_id: kompetisiId,
+            user_id: user.id,
+            status: 'registered'
+          }]);
+        
+        if (error) {
+          console.error('Kompetisi registration error:', error);
+          toast.error('Gagal daftar kompetisi: ' + error.message);
+          return;
+        }
+        
+        console.log('✅ Kompetisi registration saved:', data);
+      }
+    }
+    
+    setCheckoutDone(true);
+    clearCart();
+    setCartOpen(false);
+    toast.success('Pendaftaran kompetisi berhasil!');
+    
+  } catch (error) {
+    console.error('Kompetisi checkout error:', error);
+    toast.error('Terjadi kesalahan saat checkout');
+  }
+};
+// ==========================================
+// HANDLE CHECKOUT - SEMUA MODUL!
+// ==========================================
+const handleCheckout = async () => {
+  // Cek apakah ada item di cart atau food order
+  if (cart.length === 0 && foodOrder.length === 0) {
+    toast.error('Tidak ada pesanan!');
     return;
   }
   
@@ -191,72 +184,219 @@ const handleFoodCheckout = async () => {
   }
   
   try {
-    // Hitung subtotal (tanpa tax)
-    const subtotal = foodOrder.reduce((sum, item) => sum + item.price * item.qty, 0);
-    const tax = Math.round(subtotal * 0.11); // 11% tax
-    const totalPrice = subtotal + tax;
-    
-    // Ambil tenant_id pertama
-    let tenantId = 1;
-    try {
-      const { data: tenants } = await supabase
-        .from('tenants')
-        .select('id')
-        .limit(1);
+    // ==========================================
+    // 1. PROSES CART (Sewa RC, Store, Reparasi, Workshop, Kompetisi)
+    // ==========================================
+    for (const item of cart) {
+      // ----- SEWA RC -----
+      if (item.meta === 'Sewa RC') {
+        const parts = item.key.split('-');
+        const fleetId = parseInt(parts[1]);
+        const duration = parseInt(parts[2]);
+        
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + duration);
+        
+        const { data, error } = await supabase
+          .from('bookings')
+          .insert([{
+            user_id: user.id,
+            fleet_id: fleetId,
+            start_date: startDate.toISOString().split('T')[0],
+            end_date: endDate.toISOString().split('T')[0],
+            total_price: item.price,
+            status: 'active',
+            payment_status: 'paid'
+          }]);
+        
+        if (error) {
+          console.error('Booking error:', error);
+          toast.error('Gagal menyimpan booking: ' + error.message);
+          return;
+        }
+        console.log('✅ Booking saved:', data);
+      }
       
-      if (tenants && tenants.length > 0) {
-        tenantId = tenants[0].id;
-      } else {
-        // Buat tenant default jika belum ada
-        const { data: newTenant } = await supabase
-          .from('tenants')
-          .insert([{ name: 'Default Tenant', settlement_percentage: 85 }])
-          .select()
+      // ----- TOKO RC (Store) -----
+      else if (item.meta === 'Toko RC') {
+        // Simpan ke tabel orders atau products
+        const { data, error } = await supabase
+          .from('orders')
+          .insert([{
+            user_id: user.id,
+            product_name: item.name,
+            price: item.price,
+            qty: item.qty || 1,
+            status: 'completed',
+            payment_status: 'paid'
+          }]);
+        
+        if (error) {
+          console.error('Store order error:', error);
+          toast.error('Gagal menyimpan order: ' + error.message);
+          return;
+        }
+        console.log('✅ Store order saved:', data);
+      }
+      
+      // ----- REPARASI -----
+      else if (item.meta === 'Reparasi') {
+        const parts = item.key.split('-');
+        const serviceId = parseInt(parts[1]);
+        
+        // Ambil data service
+        const { data: service, error: fetchError } = await supabase
+          .from('reparasi')
+          .select('*')
+          .eq('id', serviceId)
           .single();
         
-        if (newTenant) {
-          tenantId = newTenant.id;
+        if (fetchError) {
+          console.error('Service fetch error:', fetchError);
+          toast.error('Gagal mengambil data service');
+          return;
         }
+        
+        // Buat order reparasi
+        const { data, error } = await supabase
+          .from('reparasi_orders')
+          .insert([{
+            user_id: user.id,
+            service_id: serviceId,
+            service_name: service.service_name || item.name,
+            price: service.price || item.price,
+            status: 'pending'
+          }]);
+        
+        if (error) {
+          console.error('Reparasi error:', error);
+          toast.error('Gagal order reparasi: ' + error.message);
+          return;
+        }
+        console.log('✅ Reparasi order saved:', data);
       }
-    } catch (err) {
-      console.warn('Error getting tenant, using default:', err);
+      
+      // ----- WORKSHOP -----
+      else if (item.meta === 'Workshop') {
+        const parts = item.key.split('-');
+        const workshopId = parseInt(parts[1]);
+        
+        // Ambil data workshop
+        const { data: workshop, error: fetchError } = await supabase
+          .from('workshop')
+          .select('registered, quota')
+          .eq('id', workshopId)
+          .single();
+        
+        if (fetchError) {
+          console.error('Workshop fetch error:', fetchError);
+          toast.error('Gagal mengambil data workshop');
+          return;
+        }
+        
+        if (workshop.registered >= workshop.quota) {
+          toast.error('Kuota workshop sudah penuh!');
+          return;
+        }
+        
+        // Update registered count
+        const { data, error } = await supabase
+          .from('workshop')
+          .update({ registered: workshop.registered + 1 })
+          .eq('id', workshopId)
+          .select();
+        
+        if (error) {
+          console.error('Workshop error:', error);
+          toast.error('Gagal daftar workshop: ' + error.message);
+          return;
+        }
+        console.log('✅ Workshop registration saved:', data);
+      }
+      
+      // ----- KOMPETISI -----
+      else if (item.meta === 'Kompetisi') {
+        const parts = item.key.split('-');
+        const kompetisiId = parseInt(parts[1]);
+        
+        const { data, error } = await supabase
+          .from('kompetisi_participants')
+          .insert([{
+            kompetisi_id: kompetisiId,
+            user_id: user.id,
+            status: 'registered'
+          }]);
+        
+        if (error) {
+          console.error('Kompetisi error:', error);
+          toast.error('Gagal daftar kompetisi: ' + error.message);
+          return;
+        }
+        console.log('✅ Kompetisi registration saved:', data);
+      }
     }
     
-    const orderData = {
-      tenant_id: tenantId,
-      user_id: user.id,
-      items: foodOrder.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        qty: item.qty,
-        cat: item.cat
-      })),
-      subtotal: subtotal,
-      tax: tax,
-      total_price: totalPrice,
-      status: 'pending',
-      payment_status: 'paid'
-    };
-    
-    console.log('📦 Order data:', orderData);
-    
-    const { data, error } = await supabase
-      .from('food_orders')
-      .insert([orderData]);
-    
-    if (error) {
-      console.error('Food order error:', error);
-      toast.error('Gagal memesan makanan: ' + error.message);
-      return;
+    // ==========================================
+    // 2. PROSES FOOD ORDER
+    // ==========================================
+    if (foodOrder.length > 0) {
+      const subtotal = foodOrder.reduce((sum, item) => sum + item.price * item.qty, 0);
+      const tax = Math.round(subtotal * 0.11);
+      const totalPrice = subtotal + tax;
+      
+      let tenantId = 1;
+      try {
+        const { data: tenants } = await supabase
+          .from('tenants')
+          .select('id')
+          .limit(1);
+        
+        if (tenants && tenants.length > 0) {
+          tenantId = tenants[0].id;
+        }
+      } catch (err) {
+        console.warn('Error getting tenant, using default:', err);
+      }
+      
+      const { data, error } = await supabase
+        .from('food_orders')
+        .insert([{
+          tenant_id: tenantId,
+          user_id: user.id,
+          items: foodOrder.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            qty: item.qty,
+            cat: item.cat
+          })),
+          subtotal: subtotal,
+          tax: tax,
+          total_price: totalPrice,
+          status: 'pending',
+          payment_status: 'paid'
+        }]);
+      
+      if (error) {
+        console.error('Food order error:', error);
+        toast.error('Gagal memesan makanan: ' + error.message);
+        return;
+      }
+      console.log('✅ Food order saved:', data);
+      setFoodOrder([]);
     }
     
-    console.log('✅ Food order saved:', data);
-    setFoodOrder([]);
-    toast.success(`Pesanan makanan berhasil! Total: Rp ${totalPrice.toLocaleString()}`);
+    // ==========================================
+    // 3. SUCCESS
+    // ==========================================
+    setCheckoutDone(true);
+    clearCart();
+    setCartOpen(false);
+    toast.success('Semua pesanan berhasil! Cek dashboard kamu.');
     
   } catch (error) {
-    console.error('Food checkout error:', error);
+    console.error('Checkout error:', error);
     toast.error('Terjadi kesalahan saat checkout');
   }
 };

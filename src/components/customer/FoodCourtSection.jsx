@@ -6,8 +6,17 @@ import { rupiah } from '../../utils/helpers';
 import { Plus, ShoppingCart, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
+// FALLBACK MENU (jika database kosong)
+const FALLBACK_MENU = [
+  { id: 1, name: "Nasi Goreng Pit Stop", price: 28000, cat: "Berat" },
+  { id: 2, name: "Ayam Geprek Chicane", price: 26000, cat: "Berat" },
+  { id: 3, name: "Es Teh Turbo", price: 8000, cat: "Minuman" },
+  { id: 4, name: "Kopi Susu Gaspol", price: 15000, cat: "Minuman" },
+  { id: 5, name: "Kentang Goreng Podium", price: 18000, cat: "Snack" },
+];
+
 export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
-  const [menu, setMenu] = useState([]);
+  const [menu, setMenu] = useState(FALLBACK_MENU);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -26,10 +35,12 @@ export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
         if (error) {
           console.error('❌ Supabase error:', error);
           setError(error.message);
+          // Pakai fallback
+          setMenu(FALLBACK_MENU);
           return;
         }
 
-        console.log('✅ Menu data:', data);
+        console.log('✅ Menu data from DB:', data);
 
         if (data && data.length > 0) {
           const formattedMenu = data.map(item => ({
@@ -41,27 +52,13 @@ export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
           }));
           setMenu(formattedMenu);
         } else {
-          // Fallback ke data hardcode jika database kosong
-          console.warn('⚠️ Menu kosong, pakai hardcode fallback');
-          setMenu([
-            { id: 1, name: "Nasi Goreng Pit Stop", price: 28000, cat: "Berat" },
-            { id: 2, name: "Ayam Geprek Chicane", price: 26000, cat: "Berat" },
-            { id: 3, name: "Es Teh Turbo", price: 8000, cat: "Minuman" },
-            { id: 4, name: "Kopi Susu Gaspol", price: 15000, cat: "Minuman" },
-            { id: 5, name: "Kentang Goreng Podium", price: 18000, cat: "Snack" },
-          ]);
+          console.warn('⚠️ Menu kosong, pakai fallback');
+          setMenu(FALLBACK_MENU);
         }
       } catch (err) {
         console.error('❌ Error loading menu:', err);
         setError(err.message);
-        // Fallback ke hardcode
-        setMenu([
-          { id: 1, name: "Nasi Goreng Pit Stop", price: 28000, cat: "Berat" },
-          { id: 2, name: "Ayam Geprek Chicane", price: 26000, cat: "Berat" },
-          { id: 3, name: "Es Teh Turbo", price: 8000, cat: "Minuman" },
-          { id: 4, name: "Kopi Susu Gaspol", price: 15000, cat: "Minuman" },
-          { id: 5, name: "Kentang Goreng Podium", price: 18000, cat: "Snack" },
-        ]);
+        setMenu(FALLBACK_MENU);
       } finally {
         setLoading(false);
       }
@@ -81,9 +78,17 @@ export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
     );
   }
 
+  if (error) {
+    console.warn('⚠️ Using fallback menu due to error:', error);
+  }
+
   return (
     <div>
-      <SectionHeader eyebrow="Modul 6" title="Food Court" desc="Sambil nunggu unit siap dipacu, isi bensin dulu." />
+      <SectionHeader 
+        eyebrow="Modul 6" 
+        title="Food Court" 
+        desc="Sambil nunggu unit siap dipacu, isi bensin dulu." 
+      />
       <div className="grid md:grid-cols-[1fr_280px] gap-6">
         {/* Menu List */}
         <div className="grid sm:grid-cols-2 gap-3">

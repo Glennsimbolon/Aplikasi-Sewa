@@ -9,34 +9,59 @@ import { supabase } from '../../lib/supabase';
 export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
   const [menu, setMenu] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadMenu = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // 🔥 AMBIL DARI DATABASE!
+        console.log('🔍 Fetching menu from Supabase...');
+        
         const { data, error } = await supabase
           .from('menu_items')
           .select('*')
           .order('category', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Supabase error:', error);
+          setError(error.message);
+          return;
+        }
 
-        console.log('📊 Menu dari database:', data);
+        console.log('✅ Menu data:', data);
 
-        // Format data
-        const formattedMenu = data.map(item => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          cat: item.category,
-          description: item.description,
-          imageUrl: item.image_url
-        }));
-
-        setMenu(formattedMenu);
-      } catch (error) {
-        console.error('Error loading menu:', error);
+        if (data && data.length > 0) {
+          const formattedMenu = data.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            cat: item.category || 'Makanan',
+            description: item.description || '',
+          }));
+          setMenu(formattedMenu);
+        } else {
+          // Fallback ke data hardcode jika database kosong
+          console.warn('⚠️ Menu kosong, pakai hardcode fallback');
+          setMenu([
+            { id: 1, name: "Nasi Goreng Pit Stop", price: 28000, cat: "Berat" },
+            { id: 2, name: "Ayam Geprek Chicane", price: 26000, cat: "Berat" },
+            { id: 3, name: "Es Teh Turbo", price: 8000, cat: "Minuman" },
+            { id: 4, name: "Kopi Susu Gaspol", price: 15000, cat: "Minuman" },
+            { id: 5, name: "Kentang Goreng Podium", price: 18000, cat: "Snack" },
+          ]);
+        }
+      } catch (err) {
+        console.error('❌ Error loading menu:', err);
+        setError(err.message);
+        // Fallback ke hardcode
+        setMenu([
+          { id: 1, name: "Nasi Goreng Pit Stop", price: 28000, cat: "Berat" },
+          { id: 2, name: "Ayam Geprek Chicane", price: 26000, cat: "Berat" },
+          { id: 3, name: "Es Teh Turbo", price: 8000, cat: "Minuman" },
+          { id: 4, name: "Kopi Susu Gaspol", price: 15000, cat: "Minuman" },
+          { id: 5, name: "Kentang Goreng Podium", price: 18000, cat: "Snack" },
+        ]);
       } finally {
         setLoading(false);
       }
@@ -48,11 +73,7 @@ export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
   if (loading) {
     return (
       <div>
-        <SectionHeader 
-          eyebrow="Modul 6" 
-          title="Food Court" 
-          desc="Sambil nunggu unit siap dipacu, isi bensin dulu." 
-        />
+        <SectionHeader eyebrow="Modul 6" title="Food Court" desc="Sambil nunggu unit siap dipacu, isi bensin dulu." />
         <div className="flex justify-center py-12">
           <Loader2 size={40} className="animate-spin" style={{ color: C.amber }} />
         </div>
@@ -60,28 +81,9 @@ export const FoodCourtSection = ({ order, onAdd, total, onCheckout }) => {
     );
   }
 
-  if (menu.length === 0) {
-    return (
-      <div>
-        <SectionHeader 
-          eyebrow="Modul 6" 
-          title="Food Court" 
-          desc="Sambil nunggu unit siap dipacu, isi bensin dulu." 
-        />
-        <div className="rounded-lg border p-6 text-center" style={{ borderColor: C.line, background: C.panel }}>
-          <p className="text-sm" style={{ color: C.steel }}>Menu belum tersedia.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <SectionHeader 
-        eyebrow="Modul 6" 
-        title="Food Court" 
-        desc="Sambil nunggu unit siap dipacu, isi bensin dulu." 
-      />
+      <SectionHeader eyebrow="Modul 6" title="Food Court" desc="Sambil nunggu unit siap dipacu, isi bensin dulu." />
       <div className="grid md:grid-cols-[1fr_280px] gap-6">
         {/* Menu List */}
         <div className="grid sm:grid-cols-2 gap-3">
